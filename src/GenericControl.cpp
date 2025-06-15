@@ -1,7 +1,7 @@
 #include "GenericControl.h"
 #include <algorithm>
 
-PIDController::PIDController(double kp, double ki, double kd, double setpoint, bool direction= true) 
+PIDController::PIDController(double kp, double ki, double kd, double setpoint, bool direction) 
     : m_kp(kp)
     , m_ki(ki)
     , m_kd(kd)
@@ -14,6 +14,7 @@ PIDController::PIDController(double kp, double ki, double kd, double setpoint, b
     , m_integralMax(1.0)
     , m_lastTime(0.0)
     , m_firstCall(true)
+    , m_direction(direction)
 {
 }
 
@@ -130,4 +131,9 @@ double PIDController::getIntegralTerm() const
 double PIDController::getDerivativeTerm() const
 {
     return m_kd * m_lastError; 
+}
+
+bool PIDController::getDirection() const
+{
+    return m_direction;
 }

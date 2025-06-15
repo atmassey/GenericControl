@@ -45,4 +45,5 @@ public:
     double getProportionalTerm() const;
     double getIntegralTerm() const;
     double getDerivativeTerm() const;
+    bool getDirection() const;
 };
