@@ -1,5 +1,6 @@
 #include "GenericControl.h"
 #include <algorithm>
+#include <cmath>
 
 PIDController::PIDController(double kp, double ki, double kd, double setpoint, bool direction) 
     : m_kp(kp)
@@ -136,4 +137,73 @@ double PIDController::getDerivativeTerm() const
 bool PIDController::getDirection() const
 {
     return m_direction;
+}
+
+FeedForwardController::FeedForwardController(double gain, double offset, bool direction, float rampRate)
+    : m_gain(gain)
+    , m_offset(offset)
+    , m_direction(direction)
+    , m_rampRate(rampRate)
+    , m_lastOutput(0.0f)
+{
+}
+
+double FeedForwardController::calculate(double currentValue, double currentTime)
+{
+    // Calculate feedforward output
+    double output = m_gain * currentValue + m_offset;
+
+    // Apply ramp rate limiting
+    if (m_rampRate > 0.0) {
+        double deltaOutput = output - m_lastOutput;
+        if (std::abs(deltaOutput) > m_rampRate * (currentTime - m_lastTime)) {
+            output = m_lastOutput + std::copysign(m_rampRate * (currentTime - m_lastTime), deltaOutput);
+        }
+    }
+
+    // Save last output and time for next calculation
+    m_lastOutput = output;
+    m_lastTime = currentTime;
+
+    return output;
+}
+
+void FeedForwardController::setGain(double gain)
+{
+    m_gain = gain;
+}
+
+void FeedForwardController::setOffset(double offset)
+{
+    m_offset = offset;
+}
+
+void FeedForwardController::setDirection(bool direction)
+{
+    m_direction = direction;
+}
+
+void FeedForwardController::setRampRate(float rampRate)
+{
+    m_rampRate = rampRate;
+}
+
+double FeedForwardController::getGain() const
+{
+    return m_gain;
+}
+
+double FeedForwardController::getOffset() const
+{
+    return m_offset;
+}
+
+bool FeedForwardController::getDirection() const
+{
+    return m_direction;
+}
+
+float FeedForwardController::getRampRate() const
+{
+    return m_rampRate;
 }
