@@ -188,6 +188,13 @@ void FeedForwardController::setRampRate(float rampRate)
     m_rampRate = rampRate;
 }
 
+float FeedForwardController::lowPassFilter(float currentValue, float alpha)
+{
+    // Apply low-pass filter to smooth the output
+    m_lastOutput = (1.0f - alpha) * m_lastOutput + alpha * currentValue;
+    return m_lastOutput;
+}
+
 double FeedForwardController::getGain() const
 {
     return m_gain;

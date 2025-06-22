@@ -69,6 +69,8 @@ public:
     
     double calculate(double currentValue, double currentTime);
     
+    float lowPassFilter(float currentValue, float alpha = 0.1f);
+    
     // Getters for internal values
     double getGain() const;
     double getOffset() const;
