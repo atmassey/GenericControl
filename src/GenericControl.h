@@ -46,6 +46,7 @@ public:
     double getIntegralTerm() const;
     double getDerivativeTerm() const;
     bool getDirection() const;
+    double getSetpoint() const { return m_setpoint; }
 };
 
 class FeedForwardController {
@@ -76,4 +77,53 @@ public:
     double getOffset() const;
     bool getDirection() const;
     float getRampRate() const;
+};
+
+class SmithPredictor {
+private:
+    PIDController m_controller;      // Main PID controller
+    double m_processGain;            // Process model gain
+    double m_processTimeConstant;    // Process model time constant (for first-order model)
+    double m_deadTime;               // Process dead time/delay
+    
+    // Process model state
+    double m_modelOutput;            // Current model output
+    double m_delayedModelOutput;     // Delayed model output
+    double m_lastProcessInput;       // Last input to process model
+    
+    // Timing
+    double m_lastTime;               // Last time calculate was called
+    bool m_firstCall;                // Flag for first call to calculate
+    
+    // Circular buffer for implementing delay
+    static const int MAX_DELAY_SAMPLES = 1000;
+    struct DelayBuffer {
+        double value;
+        double timestamp;
+    };
+    DelayBuffer m_delayBuffer[MAX_DELAY_SAMPLES];
+    int m_bufferIndex;
+    
+    // Helper methods
+    double updateProcessModel(double input, double deltaTime);
+    double getDelayedOutput(double currentTime);
+    
+public:
+    SmithPredictor(double kp = 0.0, double ki = 0.0, double kd = 0.0,
+                   double processGain = 1.0, double processTimeConstant = 1.0, 
+                   double deadTime = 0.0);
+    
+    void setControllerGains(double kp, double ki, double kd);
+    void setProcessModel(double gain, double timeConstant, double deadTime);
+    void setSetpoint(double setpoint);
+    void setOutputLimits(double min, double max);
+    
+    void reset();
+    
+    // Main control calculation with Smith Predictor structure
+    double calculate(double processOutput, double currentTime);
+    
+    // Getter methods
+    double getModelOutput() const;
+    double getDelayedModelOutput() const;
 };
