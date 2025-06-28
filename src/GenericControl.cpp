@@ -537,8 +537,6 @@ void ModelPredictiveController::predictFutureOutputs(double currentValue)
 
 void ModelPredictiveController::optimizeControlInputs(double currentValue)
 {
-    // For simplicity, use a gradient descent approach to optimize the control sequence
-    // In a production MPC, you would use a quadratic programming solver here
     
     // Start with the previous control sequence shifted by one
     for (int i = 0; i < m_controlHorizon - 1; i++) {
