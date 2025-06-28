@@ -379,3 +379,305 @@ double SmithPredictor::getDelayedModelOutput() const
 {
     return m_delayedModelOutput;
 }
+
+ModelPredictiveController::ModelPredictiveController(int predictionHorizon, int controlHorizon,
+                                                 double modelGain, double modelTimeConstant, 
+                                                 double modelDeadTime)
+    : m_predictionHorizon(predictionHorizon)
+    , m_controlHorizon(controlHorizon)
+    , m_modelGain(modelGain)
+    , m_modelTimeConstant(modelTimeConstant)
+    , m_modelDeadTime(modelDeadTime)
+    , m_outputMin(-1.0)
+    , m_outputMax(1.0)
+    , m_outputRateMin(-0.1)
+    , m_outputRateMax(0.1)
+    , m_setpointWeight(1.0)
+    , m_controlWeight(0.1)
+    , m_controlRateWeight(0.1)
+    , m_setpoint(0.0)
+    , m_lastOutput(0.0)
+    , m_lastTime(0.0)
+    , m_firstCall(true)
+    , m_modelOutput(0.0)
+{
+    // Allocate memory for prediction arrays
+    m_futureOutputs = new double[m_predictionHorizon];
+    m_futureInputs = new double[m_controlHorizon];
+    
+    // Initialize arrays
+    for (int i = 0; i < m_predictionHorizon; i++) {
+        m_futureOutputs[i] = 0.0;
+    }
+    
+    for (int i = 0; i < m_controlHorizon; i++) {
+        m_futureInputs[i] = 0.0;
+    }
+}
+
+ModelPredictiveController::~ModelPredictiveController()
+{
+    // Free allocated memory
+    delete[] m_futureOutputs;
+    delete[] m_futureInputs;
+}
+
+void ModelPredictiveController::setHorizons(int predictionHorizon, int controlHorizon)
+{
+    // Validate horizons
+    if (predictionHorizon <= 0 || controlHorizon <= 0 || controlHorizon > predictionHorizon) {
+        return; // Invalid parameters
+    }
+    
+    // Clean up old arrays
+    delete[] m_futureOutputs;
+    delete[] m_futureInputs;
+    
+    // Set new horizons
+    m_predictionHorizon = predictionHorizon;
+    m_controlHorizon = controlHorizon;
+    
+    // Allocate new arrays
+    m_futureOutputs = new double[m_predictionHorizon];
+    m_futureInputs = new double[m_controlHorizon];
+    
+    // Initialize arrays
+    for (int i = 0; i < m_predictionHorizon; i++) {
+        m_futureOutputs[i] = 0.0;
+    }
+    
+    for (int i = 0; i < m_controlHorizon; i++) {
+        m_futureInputs[i] = 0.0;
+    }
+}
+
+void ModelPredictiveController::setModelParameters(double gain, double timeConstant, double deadTime)
+{
+    m_modelGain = gain;
+    m_modelTimeConstant = timeConstant;
+    m_modelDeadTime = deadTime;
+}
+
+void ModelPredictiveController::setConstraints(double outputMin, double outputMax, 
+                                           double outputRateMin, double outputRateMax)
+{
+    if (outputMin < outputMax) {
+        m_outputMin = outputMin;
+        m_outputMax = outputMax;
+    }
+    
+    m_outputRateMin = outputRateMin;
+    m_outputRateMax = outputRateMax;
+}
+
+void ModelPredictiveController::setWeights(double setpointWeight, double controlWeight, double controlRateWeight)
+{
+    m_setpointWeight = setpointWeight;
+    m_controlWeight = controlWeight;
+    m_controlRateWeight = controlRateWeight;
+}
+
+void ModelPredictiveController::setSetpoint(double setpoint)
+{
+    m_setpoint = setpoint;
+}
+
+void ModelPredictiveController::reset()
+{
+    m_lastOutput = 0.0;
+    m_firstCall = true;
+    m_modelOutput = 0.0;
+    
+    // Reset prediction arrays
+    for (int i = 0; i < m_predictionHorizon; i++) {
+        m_futureOutputs[i] = 0.0;
+    }
+    
+    for (int i = 0; i < m_controlHorizon; i++) {
+        m_futureInputs[i] = 0.0;
+    }
+}
+
+double ModelPredictiveController::simulateStep(double currentInput, double currentOutput, double stepSize)
+{
+    // First order model: dy/dt = (K*u - y)/T
+    if (m_modelTimeConstant > 0.0) {
+        double derivative = (m_modelGain * currentInput - currentOutput) / m_modelTimeConstant;
+        return currentOutput + derivative * stepSize;
+    } else {
+        // For zero time constant (or very fast systems)
+        return m_modelGain * currentInput;
+    }
+}
+
+void ModelPredictiveController::predictFutureOutputs(double currentValue)
+{
+    // Start with current system state
+    double predictedOutput = currentValue;
+    
+    // Simulate forward in time using the model and planned inputs
+    for (int i = 0; i < m_predictionHorizon; i++) {
+        // Determine control input for this step
+        double controlInput;
+        if (i < m_controlHorizon) {
+            controlInput = m_futureInputs[i];
+        } else {
+            // After the control horizon, use the last planned input
+            controlInput = m_futureInputs[m_controlHorizon - 1];
+        }
+        
+        // Simulate one step forward using the model
+        // (Simplified, assumes fixed step size of 1.0)
+        predictedOutput = simulateStep(controlInput, predictedOutput, 1.0);
+        
+        // Store prediction
+        m_futureOutputs[i] = predictedOutput;
+    }
+}
+
+void ModelPredictiveController::optimizeControlInputs(double currentValue)
+{
+    // For simplicity, use a gradient descent approach to optimize the control sequence
+    // In a production MPC, you would use a quadratic programming solver here
+    
+    // Start with the previous control sequence shifted by one
+    for (int i = 0; i < m_controlHorizon - 1; i++) {
+        m_futureInputs[i] = m_futureInputs[i + 1];
+    }
+    m_futureInputs[m_controlHorizon - 1] = m_futureInputs[m_controlHorizon - 2];
+    
+    // Simple optimization: Iteratively improve the control sequence
+    const int MAX_ITERATIONS = 50;
+    const double ALPHA = 0.1;  // Learning rate
+    
+    for (int iter = 0; iter < MAX_ITERATIONS; iter++) {
+        // Predict outputs with current control sequence
+        predictFutureOutputs(currentValue);
+        
+        // Calculate gradients for each control move
+        for (int i = 0; i < m_controlHorizon; i++) {
+            double gradient = 0.0;
+            
+            // Cost component from setpoint tracking
+            for (int j = i; j < m_predictionHorizon; j++) {
+                // Estimate the effect of this control move on future outputs
+                double error = m_futureOutputs[j] - m_setpoint;
+                gradient += m_setpointWeight * error;
+            }
+            
+            // Cost component from control effort
+            gradient += m_controlWeight * m_futureInputs[i];
+            
+            // Cost component from control rate changes
+            if (i > 0) {
+                double rateChange = m_futureInputs[i] - m_futureInputs[i-1];
+                gradient += m_controlRateWeight * rateChange;
+            } else {
+                double rateChange = m_futureInputs[i] - m_lastOutput;
+                gradient += m_controlRateWeight * rateChange;
+            }
+            
+            // Update control move using gradient
+            m_futureInputs[i] -= ALPHA * gradient;
+            
+            // Apply constraints to the control move
+            m_futureInputs[i] = std::max(m_outputMin, std::min(m_futureInputs[i], m_outputMax));
+            
+            // Apply rate constraints
+            if (i > 0) {
+                double rateChange = m_futureInputs[i] - m_futureInputs[i-1];
+                if (rateChange > m_outputRateMax) {
+                    m_futureInputs[i] = m_futureInputs[i-1] + m_outputRateMax;
+                } else if (rateChange < m_outputRateMin) {
+                    m_futureInputs[i] = m_futureInputs[i-1] + m_outputRateMin;
+                }
+            } else {
+                double rateChange = m_futureInputs[i] - m_lastOutput;
+                if (rateChange > m_outputRateMax) {
+                    m_futureInputs[i] = m_lastOutput + m_outputRateMax;
+                } else if (rateChange < m_outputRateMin) {
+                    m_futureInputs[i] = m_lastOutput + m_outputRateMin;
+                }
+            }
+        }
+    }
+}
+
+double ModelPredictiveController::calculate(double currentValue, double currentTime)
+{
+    // Handle first call
+    if (m_firstCall) {
+        m_firstCall = false;
+        m_lastTime = currentTime;
+        m_lastOutput = 0.0;
+        m_modelOutput = currentValue;
+        
+        // Initialize prediction arrays
+        for (int i = 0; i < m_predictionHorizon; i++) {
+            m_futureOutputs[i] = currentValue;
+        }
+        
+        for (int i = 0; i < m_controlHorizon; i++) {
+            m_futureInputs[i] = 0.0;
+        }
+        
+        return m_lastOutput;
+    }
+    
+    // Calculate time delta
+    double deltaTime = currentTime - m_lastTime;
+    if (deltaTime <= 0.0) {
+        return m_lastOutput; // No time has passed
+    }
+    
+    // Update model with actual process output
+    m_modelOutput = currentValue;
+    
+    // Optimize control sequence
+    optimizeControlInputs(currentValue);
+    
+    // Get the first control move from the optimized sequence
+    double output = m_futureInputs[0];
+    
+    // Apply limits one more time to be sure
+    output = std::max(m_outputMin, std::min(output, m_outputMax));
+    
+    // Rate limiting
+    double outputRate = (output - m_lastOutput) / deltaTime;
+    if (outputRate > m_outputRateMax / deltaTime) {
+        output = m_lastOutput + m_outputRateMax;
+    } else if (outputRate < m_outputRateMin / deltaTime) {
+        output = m_lastOutput + m_outputRateMin;
+    }
+    
+    // Save state for next call
+    m_lastOutput = output;
+    m_lastTime = currentTime;
+    
+    return output;
+}
+
+double ModelPredictiveController::getModelOutput() const
+{
+    return m_modelOutput;
+}
+
+const double* ModelPredictiveController::getFutureOutputs() const
+{
+    return m_futureOutputs;
+}
+
+const double* ModelPredictiveController::getFutureInputs() const
+{
+    return m_futureInputs;
+}
+
+int ModelPredictiveController::getPredictionHorizon() const
+{
+    return m_predictionHorizon;
+}
+
+int ModelPredictiveController::getControlHorizon() const
+{
+    return m_controlHorizon;
+}

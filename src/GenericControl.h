@@ -1,4 +1,3 @@
-
 class PIDController {
 private:
     // Controller gains
@@ -126,4 +125,66 @@ public:
     // Getter methods
     double getModelOutput() const;
     double getDelayedModelOutput() const;
+};
+
+class ModelPredictiveController {
+private:
+    // Prediction and control horizons
+    int m_predictionHorizon;  // Number of steps to predict ahead (N)
+    int m_controlHorizon;     // Number of control moves to optimize (M)
+    
+    // Process model parameters
+    double m_modelGain;       // Process gain
+    double m_modelTimeConstant; // Process time constant
+    double m_modelDeadTime;   // Process dead time
+    
+    // Constraints
+    double m_outputMin;       // Minimum control output
+    double m_outputMax;       // Maximum control output
+    double m_outputRateMin;   // Minimum rate of change
+    double m_outputRateMax;   // Maximum rate of change
+    
+    // Optimization weights
+    double m_setpointWeight;  // Weight for setpoint tracking
+    double m_controlWeight;   // Weight for control effort
+    double m_controlRateWeight; // Weight for control rate changes
+    
+    // Controller state
+    double m_setpoint;        // Target value
+    double m_lastOutput;      // Last control output
+    double m_lastTime;        // Last time calculate was called
+    bool m_firstCall;         // Flag for first call
+    
+    // Internal model state
+    double m_modelOutput;     // Current model output
+    double* m_futureOutputs;  // Predicted future outputs
+    double* m_futureInputs;   // Planned future inputs
+    
+    // Helper methods
+    void predictFutureOutputs(double currentValue);
+    void optimizeControlInputs(double currentValue);
+    double simulateStep(double currentInput, double currentOutput, double stepSize);
+    
+public:
+    ModelPredictiveController(int predictionHorizon = 10, int controlHorizon = 3,
+                             double modelGain = 1.0, double modelTimeConstant = 1.0, 
+                             double modelDeadTime = 0.0);
+    ~ModelPredictiveController();
+    
+    void setHorizons(int predictionHorizon, int controlHorizon);
+    void setModelParameters(double gain, double timeConstant, double deadTime);
+    void setConstraints(double outputMin, double outputMax, 
+                       double outputRateMin, double outputRateMax);
+    void setWeights(double setpointWeight, double controlWeight, double controlRateWeight);
+    void setSetpoint(double setpoint);
+    
+    void reset();
+    double calculate(double currentValue, double currentTime);
+    
+    // Getters for internal state
+    double getModelOutput() const;
+    const double* getFutureOutputs() const;
+    const double* getFutureInputs() const;
+    int getPredictionHorizon() const;
+    int getControlHorizon() const;
 };
