@@ -33,8 +33,6 @@ public:
     void setOutputLimits(double min, double max);
 
     void setIntegralLimits(double min, double max);
-
-    void setDirection(bool direction);
     
     double calculate(double currentValue, double currentTime);
 

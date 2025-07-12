@@ -33,22 +33,6 @@ void PIDController::setGains(double kp, double ki, double kd)
     m_kd = kd;
 }
 
-// Set the direction of the controller
-void PIDController::setDirection(bool direction)
-{
-    if (direction) {
-        // Set gains for direct control
-        m_kp = std::abs(m_kp);
-        m_ki = std::abs(m_ki);
-        m_kd = std::abs(m_kd);
-    } else {
-        // Set gains for reverse control
-        m_kp = -std::abs(m_kp);
-        m_ki = -std::abs(m_ki);
-        m_kd = -std::abs(m_kd);
-    }
-}
-
 void PIDController::setSetpoint(double setpoint)
 {
     m_setpoint = setpoint;
@@ -88,8 +72,14 @@ double PIDController::calculate(double currentValue, double currentTime)
     }
     
     // Calculate error
-    double error = m_setpoint - currentValue;
+    double error;
     
+    if (m_direction) {
+        error = currentValue - m_setpoint; // Direct control
+    } else {
+        error = m_setpoint - currentValue; // Reverse control
+    }
+
     // Proportional term
     double proportional = m_kp * error;
     
